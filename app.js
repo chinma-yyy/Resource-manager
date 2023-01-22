@@ -3,18 +3,22 @@ const mongoose = require("mongoose");
 const axios = require("axios");
 const request = require("request");
 const bcrypt = require("bcryptjs");
+const bodyParser = require("body-parser");
 
 const cache = require("./models/cache");
 const User = require("./models/user");
 
 const app = express();
 
+app.use(bodyParser.urlencoded({ extended: false }));
+app.use(bodyParser.json());
+
 app.get("/", (req, res) => {
   res.send("Hello World");
 });
 
 app.get("/connect", (req, res) => {
-    res.json({message: "Hello World"});
+  res.json({ message: "Hello World" });
 });
 
 app.get("/callback", (req, res) => {
@@ -37,19 +41,25 @@ app.get("/callback", (req, res) => {
   };
   request(options, function (error, response, body) {
     if (!error) {
-      res.send(body);
+      let json = JSON.parse(body);
+      // res.send(json);
       const newUser = new User({
-        email: body.owner.user.person.email,
-        name: body.owner.user.name,
-        profilePic: body.owner.user.avatar_url,
-        accessToken: body.access_token,
+        email: json.owner.user.person.email,
+        name: json.owner.user.name,
+        profilePic: json.owner.user.avatar_url,
+        accessToken: json.access_token,
         password: "notion",
-        template_id: body.duplicated_template_id,
+        template_id: json.duplicated_template_id,
       });
-      newUser.save().then((result) => {
-        console.log("User saved");
-        return res.redirect("/create");
-      });
+      newUser
+        .save()
+        .then((result) => {
+          console.log("User saved");
+          return res.redirect("/create");
+        })
+        .catch((err) => {
+          console.log(err.message);
+        });
     } else {
       res.send(error);
       console.log("error" + error);
@@ -59,23 +69,35 @@ app.get("/callback", (req, res) => {
   console.log("Sucesss");
 });
 
-app.post("/create", (req, res) => {
-  const email = req.body.email;
-  const password = req.body.password;
-  const user = User.findOne({ email: email }).then((user)=>{
-    if(!user || !user.password=="notion"){
-      return res.json({ message: "User does not exist or already created password" });
-    }
-    return user;
-  }).updateOne({
-    password: bcrypt.hash(password, 12),
-  }).then((result) => {
-    res.json({ message: "User created" });
-  });
+app.get("/create", (req, res) => {
+  res.send("Create password");
 });
 
-app.get('/add', (req, res) => {
-    const tags=User.findOne
+app.post("/create", async (req, res) => {
+  const email = req.body.email;
+  const password = req.body.password;
+  const encrypt= await bcrypt.hash(password, 10);
+  const user = await User.findOne({ email: email })
+    .then((user) => {
+      console.log(user);
+      if (!user || !user.password == "notion") {
+        return res.json({
+          message: "User does not exist or already created password",
+        });
+      }
+    });
+    console.log("User found");
+    User.updateOne({email:email},{
+      password: encrypt,
+    })
+    .then((result) => {
+      res.json({ message: "User created" });
+      console.log(result);
+    });
+});
+
+app.get("/add", (req, res) => {
+  const tags = User.findOne();
 });
 
 app.get("/notion", (req, res) => {
