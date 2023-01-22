@@ -4,6 +4,7 @@ const axios = require("axios");
 const request = require("request");
 const bcrypt = require("bcryptjs");
 const bodyParser = require("body-parser");
+const jwt = require("jsonwebtoken");
 
 const cache = require("./models/cache");
 const User = require("./models/user");
@@ -76,34 +77,105 @@ app.get("/create", (req, res) => {
 app.post("/create", async (req, res) => {
   const email = req.body.email;
   const password = req.body.password;
-  const encrypt= await bcrypt.hash(password, 10);
-  const user = await User.findOne({ email: email })
-    .then((user) => {
-      console.log(user);
-      if (!user || !user.password == "notion") {
-        return res.json({
-          message: "User does not exist or already created password",
-        });
-      }
-    });
-    console.log("User found");
-    User.updateOne({email:email},{
+  const encrypt = await bcrypt.hash(password, 10);
+  const user = await User.findOne({ email: email }).then((user) => {
+    console.log(user);
+    if (!user || !user.password == "notion") {
+      return res.json({
+        message: "User does not exist or already created password",
+      });
+    }
+  });
+  console.log("User found");
+  User.updateOne(
+    { email: email },
+    {
       password: encrypt,
-    })
-    .then((result) => {
-      res.json({ message: "User created" });
-      console.log(result);
+    }
+  ).then((result) => {
+    const token = jwt.sign({ email: email }, process.env.JWT_SECRET, {
+      expiresIn: "1h",
     });
+    console.log(token);
+    res.json({ message: "User created", token: token });
+  });
 });
 
 app.get("/add", (req, res) => {
-  const tags = User.findOne();
+  let verify;
+  try {
+    verify = jwt.verify(
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InNoZXdhbGVjaGlubWF5NTRAZ21haWwuY29tIiwiaWF0IjoxNjc0Mzc1OTgyLCJleHAiOjE2NzQzNzk1ODJ9.2tvUolX41DkLX261TEQx1_sUi4Vyn2bkgxBq9eRyoC0",
+      process.env.JWT_SECRET
+    );
+  } catch (err) {
+    console.log(err.message);
+    return res.json({ message: "Invalid request" });
+  }
+  const email = verify.email;
+  const tags = User.findOne({ email: email }).then((user) => {
+    if (!user) {
+      return res.json({ message: "User does not exist" });
+    }
+    res.json({ tags: user.tags, profilePic: user.profilePic, name: user.name });
+  });
 });
 
-app.get("/notion", (req, res) => {
-  console.log(req.query);
-  console.log("-----");
-  console.log(req.body);
+app.post("/add", (req, res) => {
+  // let verify;
+  // try{
+  // verify= jwt.verify("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InNoZXdhbGVjaGlubWF5NTRAZ21haWwuY29tIiwiaWF0IjoxNjc0Mzc1OTgyLCJleHAiOjE2NzQzNzk1ODJ9.2tvUolX41DkLX261TEQx1_sUi4Vyn2bkgxBq9eRyoC0",process.env.JWT_SECRET);
+  // }catch(err){
+  //   console.log(err.message);
+  //   return res.json({message:"Invalid request"});
+  // }
+  // const email=verify.email;
+  // const tag = User.updateOne({ email: email},{ $addToSet: { tags: req.body.tag }});
+  const title = req.body.title;
+  const description = req.body.description;
+  const url = req.body.url;
+  const tag = req.body.tag;
+  let tags=[];
+  for (let i = 0; i < tag.length; i++) {
+    tags.push({ name: tag[i] });
+  }
+
+  var options = {
+    method: "POST",
+    url: "https://api.notion.com/v1/pages",
+    headers: {
+      "Notion-Version": "2022-02-22",
+      Authorization:
+        `Bearer ${process.env.ACCESS_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      parent: {
+        type: "database_id",
+        database_id: "e5ed425853724b0a94a5532c16a1e3de",
+      },
+      properties: {
+        URL: { type: "url", url: url },
+        Description: {
+          type: "rich_text",
+          rich_text: [{ type: "text", text: { content: description } }],
+        },
+        Tags: {
+          type: "multi_select",
+          multi_select: tags,
+        },
+        Name: {
+          type: "title",
+          title: [{ type: "text", text: { content: title } }],
+        },
+      },
+    }),
+  };
+  request(options, function (error, response) {
+    if (error) throw new Error(error);
+    console.log(response.body);
+    res.json({ message: response.body });
+  });
 });
 
 mongoose.set("strictQuery", true);
