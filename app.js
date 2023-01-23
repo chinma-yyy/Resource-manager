@@ -13,14 +13,17 @@ const app = express();
 app.use(bodyParser.urlencoded({ extended: false }));
 app.use(bodyParser.json());
 
+//Universal Handler
 app.get("/", (req, res) => {
   res.send("Hello World");
 });
 
+//Connect to Notion API using OAuth
 app.get("/connect", (req, res) => {
   res.json({ message: "Hello World" });
 });
 
+//Callback URL from Notion API
 app.get("/callback", (req, res) => {
   var options = {
     url: "https://api.notion.com/v1/oauth/token",
@@ -42,6 +45,7 @@ app.get("/callback", (req, res) => {
   request(options, async function (error, response, body) {
     if (!error) {
       let json = JSON.parse(body);
+      //Create user to save in db
       const newUser = new User({
         email: json.owner.user.person.email,
         name: json.owner.user.name,
@@ -50,11 +54,12 @@ app.get("/callback", (req, res) => {
         password: "notion",
         template_id: json.duplicated_template_id,
       });
-      console.log(newUser);
+      // console.log(newUser);
       newUser
         .save()
         .then((result) => {
           console.log("User saved");
+          //User created now redirect to create password
           return res.redirect("/create");
         })
         .catch((err) => {
@@ -66,13 +71,13 @@ app.get("/callback", (req, res) => {
       res.json({ message: "Error" });
     }
   });
-  console.log("Sucesss");
 });
 
 app.get("/create", (req, res) => {
   res.send("Create password");
 });
 
+//User must create password or password will be notion
 app.post("/create", async (req, res) => {
   const email = req.body.email;
   const password = req.body.password;
@@ -85,7 +90,6 @@ app.post("/create", async (req, res) => {
       });
     }
   });
-  console.log("User found");
   User.updateOne(
     { email: email },
     {
@@ -101,6 +105,7 @@ app.post("/create", async (req, res) => {
 });
 
 app.get("/add", (req, res) => {
+  //Verify user JWT token
   let verify;
   let jwttoken = req.headers.authorization.split(" ")[1];
   try {
@@ -115,10 +120,12 @@ app.get("/add", (req, res) => {
       return res.json({ message: "User does not exist" });
     }
     res.json({ tags: user.tags, profilePic: user.profilePic, name: user.name });
+    //Send info for frontend
   });
 });
 
 app.post("/add", async (req, res) => {
+  //Verify user JWT token
   // let verify;
   // let jwttoken = req.headers.authorization.split(" ")[1];
   // try {
@@ -127,11 +134,11 @@ app.post("/add", async (req, res) => {
   //   console.log(err.message);
   //   return res.json({ message: "Invalid request" });
   // }
-  const email = "shewalechinmay54@gmail.com";
+  const email = "shewalechinmay54@gmail.com";//Take from verify now hardcoded
   const addtag = User.updateOne(
     { email: email },
     { $addToSet: { tags: req.body.tag } }
-  );
+  );//add all tags to db
   const title = req.body.title;
   const description = req.body.description;
   const url = req.body.url;
@@ -141,16 +148,17 @@ app.post("/add", async (req, res) => {
   for (let i = 0; i < tag.length; i++) {
     tags.push({ name: tag[i] });
   }
+  //Retrieve user info from db
   const user = await User.findOne({ email: email }).then((user) => {
     if (!user) {
       return res.json({ message: "User does not exist" });
     }
     database_id = user.template_id;
     accessToken = user.accessToken;
-    // console.log(database_id, accessToken);
   });
-  console.log(database_id, accessToken);
-  // return;
+  // console.log(database_id, accessToken);
+
+  //Create page in Notion
   var options = {
     method: "POST",
     url: "https://api.notion.com/v1/pages",
@@ -185,39 +193,6 @@ app.post("/add", async (req, res) => {
     if (error) throw new Error(error);
     console.log(response.body);
     res.json({ message: response.body });
-  });
-});
-
-app.post("/search", async (req, res) => {
-  // let verify;
-  // let jwttoken= req.headers.authorization.split(" ")[1];
-  // try{
-  // verify= jwt.verify(jwttoken,process.env.JWT_SECRET);
-  // }catch(err){
-  //   console.log(err.message);
-  //   return res.json({message:"Invalid request"});
-  // }
-  // const email=verify.email;
-  var options = {
-    method: "POST",
-    url: "https://api.notion.com/v1/search",
-    headers: {
-      "Notion-Version": "2022-02-22",
-      Authorization: `Bearer ${accessToken}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      filter: {
-        value: "database",
-        property: "object",
-      },
-    }),
-  };
-  request(options, function (error, response) {
-    if (error) throw new Error(error);
-    let json = JSON.parse(response.body);
-    console.log(json);
-    res.json({ message: json });
   });
 });
 
