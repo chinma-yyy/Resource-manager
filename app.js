@@ -5,7 +5,6 @@ const bcrypt = require("bcryptjs");
 const bodyParser = require("body-parser");
 const jwt = require("jsonwebtoken");
 
-const cache = require("./models/cache");
 const User = require("./models/user");
 
 const app = express();
@@ -134,11 +133,11 @@ app.post("/add", async (req, res) => {
   //   console.log(err.message);
   //   return res.json({ message: "Invalid request" });
   // }
-  const email = "shewalechinmay54@gmail.com";//Take from verify now hardcoded
+  const email = "shewalechinmay54@gmail.com"; //Take from verify now hardcoded
   const addtag = User.updateOne(
     { email: email },
     { $addToSet: { tags: req.body.tag } }
-  );//add all tags to db
+  ); //add all tags to db
   const title = req.body.title;
   const description = req.body.description;
   const url = req.body.url;
@@ -155,9 +154,11 @@ app.post("/add", async (req, res) => {
     }
     database_id = user.template_id;
     accessToken = user.accessToken;
+    
   });
+  
+  
   // console.log(database_id, accessToken);
-
   //Create page in Notion
   var options = {
     method: "POST",
