@@ -1,6 +1,5 @@
 const express = require("express");
 const mongoose = require("mongoose");
-const axios = require("axios");
 const request = require("request");
 const bcrypt = require("bcryptjs");
 const bodyParser = require("body-parser");
@@ -40,10 +39,9 @@ app.get("/callback", (req, res) => {
       redirect_uri: "http://localhost:3000/callback",
     }),
   };
-  request(options, function (error, response, body) {
+  request(options, async function (error, response, body) {
     if (!error) {
       let json = JSON.parse(body);
-      // res.send(json);
       const newUser = new User({
         email: json.owner.user.person.email,
         name: json.owner.user.name,
@@ -52,6 +50,7 @@ app.get("/callback", (req, res) => {
         password: "notion",
         template_id: json.duplicated_template_id,
       });
+      console.log(newUser);
       newUser
         .save()
         .then((result) => {
@@ -103,12 +102,9 @@ app.post("/create", async (req, res) => {
 
 app.get("/add", (req, res) => {
   let verify;
-  let jwt= req.headers.authorization.split(" ")[1];
+  let jwttoken = req.headers.authorization.split(" ")[1];
   try {
-    verify = jwt.verify(
-      jwt,
-      process.env.JWT_SECRET
-    );
+    verify = jwt.verify(jwttoken, process.env.JWT_SECRET);
   } catch (err) {
     console.log(err.message);
     return res.json({ message: "Invalid request" });
@@ -122,39 +118,51 @@ app.get("/add", (req, res) => {
   });
 });
 
-app.post("/add", (req, res) => {
-  let verify;
-  let jwt= req.headers.authorization.split(" ")[1];
-  try{
-  verify= jwt.verify(jwt,process.env.JWT_SECRET);
-  }catch(err){
-    console.log(err.message);
-    return res.json({message:"Invalid request"});
-  }
-  const email=verify.email;
-  const addtag = User.updateOne({ email: email},{ $addToSet: { tags: req.body.tag }});
+app.post("/add", async (req, res) => {
+  // let verify;
+  // let jwttoken = req.headers.authorization.split(" ")[1];
+  // try {
+  //   verify = jwt.verify(jwttoken, process.env.JWT_SECRET);
+  // } catch (err) {
+  //   console.log(err.message);
+  //   return res.json({ message: "Invalid request" });
+  // }
+  const email = "shewalechinmay54@gmail.com";
+  const addtag = User.updateOne(
+    { email: email },
+    { $addToSet: { tags: req.body.tag } }
+  );
   const title = req.body.title;
   const description = req.body.description;
   const url = req.body.url;
   const tag = req.body.tag;
-  let tags=[];
+  let tags = [];
+  let database_id, accessToken;
   for (let i = 0; i < tag.length; i++) {
     tags.push({ name: tag[i] });
   }
-
+  const user = await User.findOne({ email: email }).then((user) => {
+    if (!user) {
+      return res.json({ message: "User does not exist" });
+    }
+    database_id = user.template_id;
+    accessToken = user.accessToken;
+    // console.log(database_id, accessToken);
+  });
+  console.log(database_id, accessToken);
+  // return;
   var options = {
     method: "POST",
     url: "https://api.notion.com/v1/pages",
     headers: {
       "Notion-Version": "2022-02-22",
-      Authorization:
-        `Bearer ${process.env.ACCESS_TOKEN}`,
+      Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
       parent: {
         type: "database_id",
-        database_id: "e5ed425853724b0a94a5532c16a1e3de",
+        database_id: database_id,
       },
       properties: {
         URL: { type: "url", url: url },
@@ -177,6 +185,39 @@ app.post("/add", (req, res) => {
     if (error) throw new Error(error);
     console.log(response.body);
     res.json({ message: response.body });
+  });
+});
+
+app.post("/search", async (req, res) => {
+  // let verify;
+  // let jwttoken= req.headers.authorization.split(" ")[1];
+  // try{
+  // verify= jwt.verify(jwttoken,process.env.JWT_SECRET);
+  // }catch(err){
+  //   console.log(err.message);
+  //   return res.json({message:"Invalid request"});
+  // }
+  // const email=verify.email;
+  var options = {
+    method: "POST",
+    url: "https://api.notion.com/v1/search",
+    headers: {
+      "Notion-Version": "2022-02-22",
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      filter: {
+        value: "database",
+        property: "object",
+      },
+    }),
+  };
+  request(options, function (error, response) {
+    if (error) throw new Error(error);
+    let json = JSON.parse(response.body);
+    console.log(json);
+    res.json({ message: json });
   });
 });
 

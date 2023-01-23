@@ -13,7 +13,6 @@ const userSchema = new Schema({
     },
     profilePic: {
         type: String,
-        required: true,
         default: null
     },
     password: {
@@ -36,7 +35,6 @@ const userSchema = new Schema({
         type: Date,
         default: Date.now
     }
-
 });
 
 module.exports=mongoose.model("User", userSchema);
