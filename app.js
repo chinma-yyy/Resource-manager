@@ -94,7 +94,7 @@ app.post("/create", async (req, res) => {
     }
   ).then((result) => {
     const token = jwt.sign({ email: email }, process.env.JWT_SECRET, {
-      expiresIn: "1h",
+      expiresIn: "7d",
     });
     console.log(token);
     res.json({ message: "User created", token: token });
@@ -103,9 +103,10 @@ app.post("/create", async (req, res) => {
 
 app.get("/add", (req, res) => {
   let verify;
+  let jwt= req.headers.authorization.split(" ")[1];
   try {
     verify = jwt.verify(
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InNoZXdhbGVjaGlubWF5NTRAZ21haWwuY29tIiwiaWF0IjoxNjc0Mzc1OTgyLCJleHAiOjE2NzQzNzk1ODJ9.2tvUolX41DkLX261TEQx1_sUi4Vyn2bkgxBq9eRyoC0",
+      jwt,
       process.env.JWT_SECRET
     );
   } catch (err) {
@@ -122,15 +123,16 @@ app.get("/add", (req, res) => {
 });
 
 app.post("/add", (req, res) => {
-  // let verify;
-  // try{
-  // verify= jwt.verify("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJlbWFpbCI6InNoZXdhbGVjaGlubWF5NTRAZ21haWwuY29tIiwiaWF0IjoxNjc0Mzc1OTgyLCJleHAiOjE2NzQzNzk1ODJ9.2tvUolX41DkLX261TEQx1_sUi4Vyn2bkgxBq9eRyoC0",process.env.JWT_SECRET);
-  // }catch(err){
-  //   console.log(err.message);
-  //   return res.json({message:"Invalid request"});
-  // }
-  // const email=verify.email;
-  // const tag = User.updateOne({ email: email},{ $addToSet: { tags: req.body.tag }});
+  let verify;
+  let jwt= req.headers.authorization.split(" ")[1];
+  try{
+  verify= jwt.verify(jwt,process.env.JWT_SECRET);
+  }catch(err){
+    console.log(err.message);
+    return res.json({message:"Invalid request"});
+  }
+  const email=verify.email;
+  const addtag = User.updateOne({ email: email},{ $addToSet: { tags: req.body.tag }});
   const title = req.body.title;
   const description = req.body.description;
   const url = req.body.url;
